@@ -1,0 +1,165 @@
+
+library("shiny")
+library("igraph")
+#library("ENA")
+library("shinyBS")
+library("knitr")
+
+reactiveAdjacencyMatrix <- function(func){
+    reactive({
+    
+    val <- func()
+    
+    if (is.null(val)){
+      return(list(names=character(), links=list(source=-1, target=-1)))
+    }
+    
+    #TODO: re-arrange columns if necessary
+    if (!all(rownames(val) == colnames(val))){
+      stop("Colnames and rownames of your matrix must be identical")
+    }
+    
+    diag(val) <- 0
+    
+    #make the matrix symmetric
+    val <- symmetricize(val, method="avg")
+    
+    #now consider only the upper half of the matrix
+    val[lower.tri(val)] <- 0
+    
+    conns <- cbind(source=row(val)[val>0]-1, target=col(val)[val>0]-1, weight=val[val>0])
+    
+    if (nrow(conns) == 0){
+      conns <- list (source=-1, target=-1, weight=0)
+    }
+    
+    list(names=rownames(val), links=conns)
+    
+  })
+  
+}
+
+check_files_uploaded <- function(inp) {
+  if (is.null(inp$data) |  is.null(inp$pert) | is.null(inp$DE) | is.null(inp$tf_orfs) | is.null(inp$orfs)) {
+    "Please upload your data files"
+  }else {
+    NULL
+  }
+}
+
+ 
+#currentButton <- 0
+read_files_to_matrix <-function(input){
+  
+  regulators = as.matrix(read.table(toString(input$regulatorGeneNamesFileName)))
+  targets = as.matrix(read.table(toString(input$targetGeneNamesFileName)))
+  pert_file <- toString(input$perturbationMatrixFile)
+  pert_input <- as.matrix(readLines(pert_file)) 
+  de_component = as.matrix(read.table(input$differentialExpressionMatrixFile))
+  #check to see if tdata has header row(condition names)
+  twoLines <- readLines(input$targetExpressionFile, n=2)
+  firstLine <- strsplit(twoLines, " ")[[1]]
+  hdr <- all(is.na(as.numeric(firstLine)))
+  if(!hdr) { 
+    
+    tdata = as.matrix(read.table(input$targetExpressionFile, header=F))
+    pert = t(sapply(targets, grepl, pert_input))
+    
+  }else{ 
+    tdata = as.matrix(read.table(input$targetExpressionFile, header=T))
+    collist <- firstLine
+    rowlist <-as.character(unlist(targets))
+    a = sapply(firstLine, grepl, pert_input)
+    b = sapply(rowlist, grepl, pert_input)
+    d=t(b) %*% a
+    colnames(d) <- collist
+    pert = d
+    
+  }
+  rdata = tdata[match(regulators, targets),] 
+  a = sapply(regulators, grepl, targets)    
+  allowed = t(!a) 
+  matrixInputFiles =list(tdata = tdata, pert = pert, de_component = de_component, regulatorsNames = regulators, targetsNames = targets,
+                         rdata = rdata, allowed = allowed, inputFiles = input)
+}
+#buttonClicked2 <- function(newButton){
+#  if(newButton == currentButton) return(FALSE)
+#  else {
+#    currentButton <- newButton
+#    return(TRUE)
+#  }
+#}
+# buttonClicked <-function(newButton){
+#     if(!buttonClicked2(newButton)){ " Button not clicked yet"}
+#     else{NULL}
+#   }
+# inputFiles1 = NULL
+# set_input_files <- function(inputFiles){
+#    inputFiles1 <- inputFiles
+# }
+
+get_input_fils <-function(){
+  return(inputFiles1)
+}
+
+
+shinyServer(function(input, output) {
+    AAA <- reactive({
+      validate(
+        check_files_uploaded(input)
+      )  
+      targetExpressionFile = input$data$datapath
+      differentialExpressionMatrixFile = input$DE$datapath
+      perturbationMatrixFile = input$pert$datapath
+      regulatorGeneNamesFileName = input$tf_orfs$datapath
+      targetGeneNamesFileName = input$orfs$datapath
+      inputFiles <- list(targetExpressionFile= targetExpressionFile, differentialExpressionMatrixFile=differentialExpressionMatrixFile,
+                         perturbationMatrixFile=perturbationMatrixFile, regulatorGeneNamesFileName=regulatorGeneNamesFileName,
+                         targetGeneNamesFileName=targetGeneNamesFileName)
+      
+      inputTables <- read_files_to_matrix(inputFiles)
+    })
+    inputDataset <- reactive({
+      input$getData
+      if(input$getData==0) return(NULL)
+       
+     
+      inputTables = isolate(AAA())
+      source("./CODE/run_netprophet.r", local = TRUE)
+      
+      cat("I'm done")
+      as.table.interactions
+
+   })
+  
+  output$table <- renderDataTable({
+    inputDataset()
+  }, options = list(aLengthMenu = c(5, 30, 50), iDisplayLength = 10))
+
+  output$downloadData <- downloadHandler(
+    filename = function() { paste('combined_model', '.csv', sep='') },
+    content = function(file) {
+    write.csv(inputDataset(), file)
+  })
+  
+  
+  output$mainnet <- reactiveAdjacencyMatrix(function() {
+    
+      
+    mydata <- read.delim(".\\DATA\\YEAST_SUBNETWORK\\OUTPUT\\GLOBAL_SHRINKAGE\\combined_model.adjmtr", header=F, sep="\t")  
+    gD <- simplify(graph.data.frame(mydata, directed=T))
+    gAdj <- get.adjacency(gD,type="both", edges = T, sparse = FALSE)
+    adjMatrix <- matrix(0, ncol=200, nrow=(200-24))
+    adj <-rbind(adjMatrix, mydata)
+    data <- read.delim(".\\DATA\\YEAST_SUBNETWORK\\INPUT\\data.withlbls.expr", header = T, sep = " ", quote = "\"'",dec = ".", row.names=1)
+    names(adj) <-row.names(data)
+    row.names(adj) <- row.names(data)
+    net <- adj
+    net <- abs(net)
+    net[net < input$con_weight] <- 0
+    net
+    
+   
+    
+  })
+})

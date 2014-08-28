@@ -1,0 +1,129 @@
+<style type="text/css">
+
+/*  CSS chunck 1  */
+th {  background-color:#E0E0E0 ;
+      border-bottom:1px solid black;
+      padding:5px;}
+
+td{
+border-bottom:1px dotted black;
+padding:5px;}
+
+table{ 
+border-collapse:collapse;
+margin:auto;
+ border: 1px solid black;}
+</style>
+<style type="text/css">
+  @media only screen and (max-width: 480px) {
+    table[class="container"] { 
+      width:320px !important;
+    }
+  }
+</style>
+
+What is NetProphet?
+-------------------------------
+
+NetProphet is a novel algorithm for inferring transcriptional regulatory networks from gene expression data. For every possible interaction between a TF and a target gene, NetProphet computes a confidence score by combining the score from its coexpression analysis with the score from its DE analysis. The coexpression score is a LASSO regression coefficient reflecting the degree to which coexpression patterns allow the expression level of the putative target gene to be predicted from that of the TF. The DE score is the significance statistic (e.g. log odds, or -log(pval)) that the putative target is differentially expressed when the TF is perturbed, given the available replicate expression profiles.
+
+Input Files
+---------------------------------
+
+NetProphet needs 5 input files which you can upload using the 'upload panel' on the left. Below we describe each file in detail. For simplisity, let's define the following abbreveiations :
+
+ - "T" : is the set of Target Genes. |T| shows the number of target genes.
+ - "R" : is the set of Regulators. |R| shows the number of regulators.
+ - "G" : is the total list of genes, i.e target genes and regulators. |G| is accordingly the total number of genes.
+ - "E" : is the set of expression conditions. |E| shows the number of expression conditions. 
+
+And this is the description for each of the inputs:
+
+1. **Gene Expression File**: A space separated matrix of expression values of size |G| x |E|. Each row contains the expression of a single gene (regulator/target). Each column contains the expression of all genes in an individual sample.
+
+2. **Differential Expression Matrix File**: A space separated adjacency matrix of size |R| (rows) x |T| (columns). For each possible interaction between regulator i (Ri) and target gene j (Tj), set entry Mij to the signed logged differential expression significance of Tj when Ri is perturbed. If Ri has not been perturbed, then set Mij = 0 for all j. 
+
+3. **Target Gene Names File**: A file listing one target gene identifier per line. The target gene identifiers should be ordered as they are in each required matrix.
+
+4. **Regulator Gene Names File**: A file listing one regulator gene identifier per line. The regulator gene identifiers should be ordered as they are in each required matrix.
+5. **Perturbation Matrix File** - is the file containing the information about the target genes that are experimentally perturbed. This file is accepted in two different formats depending on whether the 'Gene Expression' file has a header row or not:
+
+    1. If expression conditions are labled, i.e. the Gene Expression matrix has a header row, Then each row of the perturbation matrix contains an expression lablel followed by the list of genes that are perturbed in that experiment. The tables below show a labled expression matrix and the format accepted for the perturbation matrix:
+        <p/>
+        <p/>
+
+```{r two-column, results='asis', echo=FALSE, out.extra=''}
+library(xtable) 
+cat("<table class='container'>")
+cat("<tr>")
+cat("<td>")
+ c1 <- c(0.07, 0.32, 0.18, 0.20, -.44)
+ c2 <- c(0.14, 0.35, 0.26, 0.65, -0.28)
+ c3 <- c(0.17, 0.68, 0.07, 0.35, -0.52)
+ c4 <- c(0.13, 0.40, 0.26, 0.59, -0.21)
+ data<- data.frame(c1, c2, c3, c4)
+row.names(data) <- c("YAL038W", "YAL040C", "YBL029W", "YBL030C", "YBR157C")
+print(xtable(data, caption='Labled Expression Data'), comment=FALSE, type='html') 
+cat("</td>")
+cat("<td>")
+ perturbed_genes <- c("YAL040C", "YAL030C", "YAL038W \t YBL029W")
+  data1 <- data.frame(perturbed_genes)
+  row.names(data1) <- c("c1", "c3", "c4")
+ print(xtable(data1,caption='Perturbation matrix'), comment=FALSE, type='html') 
+cat("</td>")
+cat("</tr>")
+cat("</table>")
+```  
+        <p/>
+        <p/>
+    2. If the expression conditions are not labled, then each row in the perturbation matrix corresponds to one expression condition, containing the perturbed genes in that condition. If no gene is purturbed in a condition, then the corresponding row would be empty. The tables below show an example of unlabled Expression data, and the perturbation matrxi for it :
+            <p/>
+        <p/>
+
+```{r two-column1, results='asis', echo=FALSE, out.extra=''}
+library(xtable) 
+cat("<table width='100%' cellspacing='0' cellpadding='0' border='0' class='container'>")
+cat("<tr>")
+cat("<td>")
+ c1 <- c(0.07, 0.32, 0.18, 0.20, -.44)
+ c2 <- c(0.14, 0.35, 0.26, 0.65, -0.28)
+ c3 <- c(0.17, 0.68, 0.07, 0.35, -0.52)
+ c4 <- c(0.13, 0.40, 0.26, 0.59, -0.21)
+ data<- data.frame(c1, c2, c3, c4)
+names(data) <-""
+row.names(data) <- c("YAL038W", "YAL040C", "YBL029W", "YBL030C", "YBR157C")
+print(xtable(data, caption='Unlabled Expression Data'), comment=FALSE, type='html') 
+cat("</td>")
+cat("<td>")
+ perturbed_genes <- c("YAL040C", "\t", "YAL030C", "YAL038W \t YBL029W")
+  data1 <- data.frame(perturbed_genes)
+ 
+ print(xtable(data1,caption='Perturbation matrix'), comment=FALSE, type='html') 
+cat("</td>")
+cat("</tr>")
+cat("</table>")
+```  
+        <p/>
+        <p/> 
+
+
+Output Files
+----------------------------------------------------
+
+1. **lasso.adjmtr** - A space separated adjacency matrix of size |R| x |G|. Each entry Mij of matrix M is the LASSO regression coefficient of the interaction between regulator Ri and target gene Tj. In this matrix, interactions with higher absolute value scores should be trusted more than interactions with lower absolute value scores.
+
+2. **combined_model.adjmtr** - A space separated adjacency matrix of size |R| x |G|. Each entry Mij of matrix M is the NetProphet score of the interaction between regulator Ri and target gene Tj. In this matrix, interactions with higher scores are more likely to be direct regulatory interactions.	
+
+3. **combined_model.adjlst** - A tab separated adjacency list. Each row lists the following pieces of information about an interaction between a regulator i (Ri) and target gene j (Tj) in the order in which they appear below. 
+
+  1. Regulator identifier
+	2. Target gene identifier
+	3. NetProphet score
+	4. Differential expression interaction sign: Activation = 1; repression = -1.
+	5. LASSO interaction sign: Activation = 1; repression = -1.
+	6. Combined sign: The mean of the differential expression interaction sign and the LASSO interaction sign.
+	7. NetProphet score rank: The rank of this interaction out of all interactions. Interactions with lower ranks should be trusted more than interactions with higher ranks.
+ 
+ 
+
+  

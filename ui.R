@@ -76,6 +76,7 @@ shinyUI( fluidPage(theme = "Cerulean.css",
       tags$style(type="text/css", ".jslider { max-width: 400px; }")
     ),
     tabsetPanel(id="tabSelected",
+          tabPanel("Help", includeRmd("help.Rmd")),
           tabPanel("Table", loadingPanel, dataTableOutput("table")),
           tabPanel("Download",
                    p("Below you can download the output files of NetProphet. Please refer to the help page for more details about each file"),
@@ -98,7 +99,7 @@ shinyUI( fluidPage(theme = "Cerulean.css",
         #                       label = "Connection threshold:",
         #                       min = 0.0, max = 1.0, value = .06, step = 0.03),HTML("<hr />"), includeHTML("graph.js"),
         #                       reactiveNetwork(outputId = "mainnet") ),
-         tabPanel("Help", includeRmd("help.Rmd"))
+         
                    
           
     )  
